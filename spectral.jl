@@ -31,10 +31,24 @@ for key in keys(cellIDs)
     cellIDs[key] = Int.(cellIDs[key])[:]  # turn into vector of integers
 end
 
+# array of Eyewire IDs
 fname = matopen("AllCells.mat")
 AllCells = read(fname, "AllCells")
 close(fname)
 AllCells = round.(Int, vec(AllCells))
+
+# array of cell classes
+CellClass = fill("", size(AllCells))
+for key in keys(cellIDs)
+    for i in cellIDs[key]
+        if sum(AllCells .== i) > 1
+            println("duplicate detected: ", i)
+        end
+        if ~isempty(findall(AllCells .== i))  # some IDs don't exist in AllCells
+            CellClass[findall(AllCells .== i)[1]] = key
+        end
+    end
+end
 
 integratorinds = findall(map(s -> occursin("Integrator", s), CellClass))
 abdminds = findall(map(s -> occursin("Abducens_M", s), CellClass))
@@ -43,6 +57,16 @@ abdiinds = findall(map(s -> occursin("Abducens_I", s), CellClass))
 # zero outgoing connections from ABD as they are partner assignment errors
 W[:, abdminds] .= 0  
 W[:, abdiinds] .= 0
+
+# remove reticulospinal neurons
+#RSinds = findall(CellClass .== "RS")
+#W[:, RSinds] .= 0  
+#W[RSinds, :] .= 0  
+
+# remove 77099
+ind = findall(AllCells .== 77099)
+W[ind, :] .= 0
+W[:, ind] .= 0
 
 # IDs of r78contra dendrites (unique). Each dendrite should have no outgoing synapses
 dendrites = [76199, 76200, 76182, 76183, 76185, 76186, 76189, 76191, 76188, 77582, 77605, 79040, 76399, 76828, 76829, 76826, 76289, 76542, 76832, 76838, 76877]
@@ -68,6 +92,7 @@ end
 # This is the 2n x 2n connection matrix for the bilateral model
 Wbilateral = [Wipsi Crossing; Crossing Wipsi]
 
+# faster way of getting just the principal eigenvector
 #vr = powermethod(Wbilateral)
 #vl = powermethod(Wbilateral')
 
@@ -93,4 +118,5 @@ fanin = vec(sum(Wbilateral, dims=2))
 toabdm = vec(sum(Wbilateral[abdminds, :], dims=1))
 toabdi = vec(sum(Wbilateral[abdiinds, :], dims=1))
 
-CSV.write("ranking.csv", DataFrame([ind [AllCells fanout[1:n] fanin[1:n] tointegrator[1:n] fromintegrator[1:n] toabdm[1:n] CellClass centrality[1:n]][ind,:]]), writeheader = false)
+#CSV.write("ranking_noreticulospinal.csv", DataFrame([ind [AllCells fanout[1:n] fanin[1:n] tointegrator[1:n] fromintegrator[1:n] toabdm[1:n] CellClass centrality[1:n]][ind,:]]), writeheader = false)
+CSV.write("ranking_no77099.csv", DataFrame([ind [AllCells fanout[1:n] fanin[1:n] tointegrator[1:n] fromintegrator[1:n] toabdm[1:n] CellClass centrality[1:n]][ind,:]]), writeheader = false)
